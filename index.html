@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyseur de risques – Roulette européenne</title>
+<style>
+:root{--felt:#0b6b3a;--felt2:#095a31;--gold:#d4af37;--ink:#f5efd6;--red:#c0222b;--blk:#15151a;--bg:#0c1511;--card:#13211a}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at top,#173626,var(--bg));color:var(--ink);font-family:system-ui,Segoe UI,Roboto,sans-serif;min-height:100vh}
+header{padding:14px 18px;border-bottom:2px solid var(--gold);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between}
+h1{margin:0;font-size:1.25rem;color:var(--gold);letter-spacing:.5px}
+header small{opacity:.75}
+main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;padding:16px;max-width:1500px;margin:auto}
+@media(max-width:1000px){main{grid-template-columns:1fr;padding:10px}}
+.panel{background:var(--card);border:1px solid #2c4636;border-radius:12px;padding:12px;margin-bottom:14px}
+h2{font-size:1rem;margin:0 0 10px;color:var(--gold)}
+/* Plateau */
+.board{position:relative;width:100%;aspect-ratio:14/6;container-type:inline-size;background:var(--felt);border:3px solid var(--gold);border-radius:8px;user-select:none;touch-action:manipulation}
+.board>div{position:absolute}
+.cell{border:1px solid #efe6bd;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:2.4cqw;cursor:pointer;color:#fff}
+.cell:hover{filter:brightness(1.3)}
+.cell.r{background:var(--red)}.cell.b{background:var(--blk)}.cell.g{background:var(--felt2)}.cell.o{background:var(--felt);font-size:1.8cqw;text-align:center;line-height:1.1}
+.cell.dia{font-size:1.6cqw}
+.diamond{width:60%;height:60%;transform:rotate(45deg) scale(.7);}
+.zone{z-index:5;cursor:pointer;border-radius:50%}
+.zone:hover{background:rgba(255,255,255,.4);box-shadow:0 0 0 2px var(--gold)}
+.chipb{z-index:9;pointer-events:none;width:3.6cqw;height:3.6cqw;transform:translate(-50%,-50%);border-radius:50%;border:.35cqw dashed rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:1.25cqw;font-weight:800;color:#111;box-shadow:0 1px 3px #000a}
+/* Jetons */
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{width:46px;height:46px;border-radius:50%;border:4px dashed rgba(255,255,255,.85);font-weight:800;cursor:pointer;color:#111;box-shadow:0 2px 4px #000a;font-size:.8rem}
+.chip.sel{outline:3px solid var(--gold);outline-offset:2px;transform:translateY(-3px)}
+button,input[type=number]{font:inherit}
+.btn{background:#1f3a2b;color:var(--ink);border:1px solid var(--gold);border-radius:8px;padding:8px 12px;cursor:pointer}
+.btn:hover{background:#2b5239}.btn.pri{background:var(--gold);color:#111;font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+input[type=number]{width:80px;padding:7px;border-radius:6px;border:1px solid #456;background:#0c1511;color:var(--ink)}
+.hint{font-size:.78rem;opacity:.7;margin-top:8px}
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.stat{background:#0e1a14;border:1px solid #2c4636;border-radius:8px;padding:8px}
+.stat span{display:block;font-size:.72rem;opacity:.7}.stat b{font-size:1.05rem}
+.pos{color:#4cd97b}.neg{color:#ff6b6b}.neu{color:#ffb84d}
+.claude{border:1px dashed var(--gold);border-radius:10px;padding:8px;margin-top:10px}
+.claude h3{margin:0 0 6px;font-size:.85rem;color:var(--gold)}
+.tw{max-height:430px;overflow:auto;border:1px solid #2c4636;border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{padding:5px 8px;text-align:right;white-space:nowrap}
+th{position:sticky;top:0;background:#0b1510;color:var(--gold);z-index:2}
+td:first-child,th:first-child{text-align:center}
+.nb{display:inline-block;min-width:28px;padding:2px 0;border-radius:5px;color:#fff;font-weight:700;text-align:center}
+.nb.r{background:var(--red)}.nb.b{background:#000}.nb.g{background:var(--felt)}
+tr.cg{background:rgba(46,160,90,.30)}tr.co{background:rgba(240,160,40,.28)}tr.cr{background:rgba(200,40,50,.30)}
+.bars{display:flex;align-items:center;height:110px;gap:2px;margin-top:6px}
+.bar{flex:1;position:relative;height:100%}
+.bar i{position:absolute;left:0;right:0;border-radius:2px}
+label.ck{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎰 Analyseur de risques — Roulette européenne (0–36)</h1>
+  <small>Calculateur stratégique · aucun tirage simulé</small>
+</header>
+<main>
+<section>
+  <div class="panel">
+    <h2>Tapis</h2>
+    <div class="board" id="board"></div>
+    <div class="hint">Clic = ajouter le jeton sélectionné · clic droit (ou Maj+clic) = retirer un jeton · points d'intersection = chevaux, transversales, carrés, sizains.</div>
+  </div>
+  <div class="panel">
+    <h2>Jetons</h2>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <label>Valeur perso : <input type="number" id="custom" min="0.01" step="0.01" placeholder="ex. 3"></label>
+      <button class="btn" id="setCustom">Utiliser</button>
+      <span>Jeton actif : <b id="curChip">1</b></span>
+    </div>
+    <div class="row">
+      <button class="btn" id="undo">↶ Annuler</button>
+      <button class="btn" id="dbl">×2 Doubler</button>
+      <button class="btn" id="clr">🗑 Effacer</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Annonces (mise = jeton actif × répartition standard)</h2>
+    <div class="row" style="margin-top:0">
+      <button class="btn" data-sp="vois">Voisins du zéro (9 jetons)</button>
+      <button class="btn" data-sp="tiers">Tiers du cylindre (6 jetons)</button>
+      <button class="btn" data-sp="orph">Orphelins (5 jetons)</button>
+      <button class="btn" data-sp="zero">Jeu zéro (4 jetons) <small>· idée Claude</small></button>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="panel">
+    <h2>Analyse</h2>
+    <div class="row" style="margin-top:0">
+      <button class="btn pri" id="calc">⚡ Calculer / Analyser</button>
+      <label class="ck"><input type="checkbox" id="live" checked> Mise à jour en temps réel</label>
+      <label class="ck"><input type="checkbox" id="color" checked> Coloration automatique</label>
+    </div>
+    <div class="stats" id="stats" style="margin-top:12px"></div>
+    <div class="claude" id="extra"></div>
+  </div>
+  <div class="panel">
+    <h2>Synthèse par numéro</h2>
+    <div class="tw"><table id="tbl"><thead><tr><th>N°</th><th>Mise totale</th><th>Gain brut</th><th>Gain net</th><th>Proba</th><th>Mises gagnantes</th></tr></thead><tbody></tbody></table></div>
+    <div class="hint">Gain brut = total rendu par le croupier (mise gagnante + gains). Gain net = gain brut − mise totale engagée. <b>Légende :</b> vert = bénéfice · orange = remboursé ou perte partielle · rouge = perte totale.</div>
+  </div>
+</section>
+</main>
+
+<script>
+/* ============ Données de base ============ */
+const RED = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+const colorOf = n => n===0 ? 'g' : RED.has(n) ? 'r' : 'b';
+const R = (a,b) => Array.from({length:b-a+1},(_,i)=>a+i);
+const key = nums => [...nums].sort((a,b)=>a-b).join(',');
+const r2 = x => Math.round(x*100)/100;
+const fmt = x => (Math.round(x*100)/100).toString();
+const money = x => (x>=0?'':'−') + Math.abs(x).toFixed(2);
+const $ = s => document.querySelector(s);
+const CHIPS = [[0.5,'#d9d9d9'],[1,'#f2f2f2'],[2,'#f4a6c0'],[5,'#e05a5a'],[10,'#5a9be0'],[25,'#5cc47a'],[50,'#f0a040'],[100,'#222;color:#fff']];
+const chipColor = v => { const c=[...CHIPS].reverse().find(c=>v>=c[0]); return c?c[1]:'#fff'; };
+
+/* Annonces : [numéros, poids en jetons] */
+const SPECIALS = {
+  vois:[[[0,2,3],2],[[4,7],1],[[12,15],1],[[18,21],1],[[19,22],1],[[32,35],1],[[25,26,28,29],2]],
+  tiers:[[[5,8],1],[[10,11],1],[[13,16],1],[[23,24],1],[[27,30],1],[[33,36],1]],
+  orph:[[[1],1],[[6,9],1],[[14,17],1],[[17,20],1],[[31,34],1]],
+  zero:[[[0,3],1],[[12,15],1],[[26],1],[[32,35],1]]
+};
+
+/* ============ État ============ */
+let chip = 1;
+let bets = new Map();      // clé "n1,n2,…" -> montant
+let history = [];          // pile d'instantanés pour « Annuler »
+const zones = new Map();   // clé -> {label,x,y} (centre en unités de grille)
+
+/* ============ Construction du tapis ============ */
+// Grille : 14 colonnes (0 | 1..12 | colonnes 2:1) × 5 lignes (3 numéros, douzaines, chances simples)
+const UW = 100/14, UH = 100/5;
+const cell = (c,r) => 3*(c-1) + 3 - r;       // numéro en colonne c (1..12), ligne r (0=haut)
+const board = $('#board');
+
+function box(x,y,w,h,cls,html){
+  const d = document.createElement('div');
+  d.className = cls;
+  Object.assign(d.style,{left:x*UW+'%',top:y*UH+'%',width:w*UW+'%',height:h*UH+'%'});
+  if(html!==undefined) d.innerHTML = html;
+  board.appendChild(d); return d;
+}
+// Zone cliquable : (x,y,w,h) en unités ; register => enregistre la position du jeton
+function zone(nums,label,x,y,w,h,cls){
+  const k = key(nums);
+  if(!zones.has(k)) zones.set(k,{label,x:x+w/2,y:y+h/2});
+  const d = box(x,y,w,h,cls);
+  d.title = label;
+  d.addEventListener('click',e=>{ e.shiftKey ? changeBets([[nums,-chip]]) : changeBets([[nums,chip]]); });
+  d.addEventListener('contextmenu',e=>{ e.preventDefault(); changeBets([[nums,-chip]]); });
+  return d;
+}
+const inner = (nums,label,cx,cy,w,h) => zone(nums,label,cx-w/2,cy-h/2,w,h,'zone');
+
+(function build(){
+  // Zéro
+  zone([0],'Plein 0',0,0,1,3,'cell g').textContent = '0';
+  // Numéros
+  for(let c=1;c<=12;c++) for(let r=0;r<3;r++){
+    const n = cell(c,r);
+    zone([n],'Plein '+n,c,r,1,1,'cell '+colorOf(n)).textContent = n;
+  }
+  // Colonnes (2:1) : haut = multiples de 3
+  [[0,3],[1,2],[2,1]].forEach(([r,m],i)=>{
+    const nums = R(1,36).filter(n=>n%3===m%3);
+    zone(nums,'Colonne '+(3-i===3?3:3-i),13,r,1,1,'cell o').textContent='2:1';
+  });
+  // Douzaines
+  ['1ère douzaine (P12)','2ème douzaine (M12)','3ème douzaine (D12)'].forEach((l,i)=>
+    zone(R(12*i+1,12*i+12),l,1+4*i,3,4,1,'cell o').textContent = ['1ère 12','2ème 12','3ème 12'][i]);
+  // Chances simples
+  const ch = [
+    ['Manque (1-18)',R(1,18),'Manque 1-18','o'],
+    ['Pair',R(1,36).filter(n=>n%2===0),'Pair','o'],
+    ['Rouge',R(1,36).filter(n=>RED.has(n)),'<div class="diamond" style="background:var(--red)"></div>','r'],
+    ['Noir',R(1,36).filter(n=>n>0&&!RED.has(n)),'<div class="diamond" style="background:#000;border:1px solid #666"></div>','b'],
+    ['Impair',R(1,36).filter(n=>n%2===1),'Impair','o'],
+    ['Passe (19-36)',R(19,36),'Passe 19-36','o']];
+  ch.forEach(([l,nums,html,cls],i)=>{ zone(nums,l,1+2*i,4,2,1,'cell '+cls).innerHTML = html; });
+
+  // Zones intérieures (intersections), placées en dernier pour être au-dessus
+  for(let c=1;c<=12;c++){
+    for(let r=0;r<3;r++){
+      if(c<12) inner([cell(c,r),cell(c+1,r)],`Cheval ${cell(c,r)}/${cell(c+1,r)}`,c+1,r+.5,.3,.5);
+      if(r<2)  inner([cell(c,r),cell(c,r+1)],`Cheval ${cell(c,r)}/${cell(c,r+1)}`,c+.5,r+1,.5,.3);
+      if(c<12&&r<2) inner([cell(c,r),cell(c+1,r),cell(c,r+1),cell(c+1,r+1)],'Carré '+key([cell(c,r),cell(c+1,r),cell(c,r+1),cell(c+1,r+1)]).replace(/,/g,'-'),c+1,r+1,.3,.3);
+    }
+    inner(R(3*c-2,3*c),`Transversale ${3*c-2}-${3*c}`,c+.5,3,.5,.3);
+    if(c<12) inner(R(3*c-2,3*c+3),`Sizain ${3*c-2}-${3*c+3}`,c+1,3,.3,.3);
+  }
+  // Liens avec le zéro
+  for(let r=0;r<3;r++) inner([0,cell(1,r)],`Cheval 0/${cell(1,r)}`,1,r+.5,.3,.5);
+  inner([0,2,3],'Transversale 0-2-3',1,1,.3,.3);
+  inner([0,1,2],'Transversale 0-1-2',1,2,.3,.3);
+  inner([0,1,2,3],'Carré 0-1-2-3',1,3,.3,.3);
+})();
+
+/* ============ Gestion des mises ============ */
+function changeBets(list){
+  history.push(new Map(bets));
+  list.forEach(([nums,amt])=>{
+    const k = key(nums);
+    const v = r2((bets.get(k)||0)+amt);
+    v>0 ? bets.set(k,v) : bets.delete(k);
+  });
+  refresh();
+}
+function refresh(){
+  // Jetons posés sur le tapis
+  board.querySelectorAll('.chipb').forEach(e=>e.remove());
+  bets.forEach((amt,k)=>{
+    const z = zones.get(k); if(!z) return;
+    const d = box(z.x-.0,z.y-.0,0,0,'chipb',fmt(amt));
+    Object.assign(d.style,{left:z.x*UW+'%',top:z.y*UH+'%',width:'',height:'',background:chipColor(amt).split(';')[0]});
+    if(chipColor(amt).includes('color')) d.style.color='#fff';
+  });
+  if($('#live').checked) analyze(); else markStale();
+}
+function markStale(){ $('#calc').textContent='⚡ Calculer / Analyser (mises modifiées)'; }
+
+/* ============ Analyse ============ */
+function analyze(){
+  $('#calc').textContent='⚡ Calculer / Analyser';
+  const list = [...bets].map(([k,amt])=>({nums:k.split(',').map(Number),amt}));
+  const total = r2(list.reduce((s,b)=>s+b.amt,0));
+  // Gain brut pour chaque numéro : mise × 36 / nb de numéros couverts (= paiement N:1 + mise rendue)
+  const gross = R(0,36).map(n=>r2(list.reduce((s,b)=>b.nums.includes(n)? s+b.amt*36/b.nums.length : s,0)));
+  const net = gross.map(g=>r2(g-total));
+  const nWin = net.filter(x=>x>0).length, nNeutral = net.filter(x=>x===0).length;
+  const nPartial = R(0,36).filter(n=>gross[n]>0&&net[n]<0).length, nLoss = gross.filter(g=>g===0).length;
+  const ev = gross.reduce((s,g)=>s+g,0)/37 - total;          // espérance de gain net
+  const sd = Math.sqrt(net.reduce((s,x)=>s+(x-ev)**2,0)/37);   // écart-type
+  const pc = x => (x/37*100).toFixed(2)+'%';
+  const cls = x => x>0?'pos':x<0?'neg':'neu';
+  const maxN = Math.max(...net), minN = Math.min(...net);
+
+  $('#stats').innerHTML = [
+    ['Mise totale',total.toFixed(2),''],
+    ['P(bénéfice)',`${pc(nWin)} (${nWin}/37)`,'pos'],
+    ['P(remboursé exact)',`${pc(nNeutral)} (${nNeutral}/37)`,'neu'],
+    ['P(perte partielle)',`${pc(nPartial)} (${nPartial}/37)`,'neu'],
+    ['P(perte totale)',`${pc(nLoss)} (${nLoss}/37)`,'neg'],
+    ['Espérance nette',money(ev),cls(ev)],
+    ['ROI espéré',total? (ev/total*100).toFixed(2)+'%':'—',cls(ev)],
+    ['Proba par numéro','1/37 = 2,70 %','']
+  ].map(([l,v,c])=>`<div class="stat"><span>${l}</span><b class="${c}">${v}</b></div>`).join('');
+
+  // Idées complémentaires (Claude)
+  const covered = R(0,36).filter(n=>gross[n]>0).length;
+  const be = total ? Math.ceil(total/ (total/37*36/36) ) : 0;
+  $('#extra').innerHTML = `<h3>💡 Analyses ajoutées par Claude</h3>
+    <div class="stats">
+      <div class="stat"><span>Numéros couverts</span><b>${covered}/37</b></div>
+      <div class="stat"><span>Meilleur résultat net</span><b class="${cls(maxN)}">${money(maxN)}</b></div>
+      <div class="stat"><span>Pire résultat net</span><b class="${cls(minN)}">${money(minN)}</b></div>
+      <div class="stat"><span>Écart-type (volatilité)</span><b>${sd.toFixed(2)}</b></div>
+      <div class="stat"><span>Avantage maison théorique</span><b>${total?(-ev/total*100).toFixed(2)+'%':'2,70 %'}</b></div>
+      <div class="stat"><span>Gain max / mise</span><b>${total?(maxN/total).toFixed(2)+'×':'—'}</b></div>
+    </div>
+    <div class="hint" style="margin-top:6px">Gain net par numéro (0 → 36) :</div>
+    <div class="bars">${net.map((x,n)=>{
+      const m = Math.max(Math.abs(maxN),Math.abs(minN),1), h = Math.abs(x)/m*50;
+      const style = x>=0 ? `bottom:50%;height:${h}%;background:#4cd97b` : `top:50%;height:${h}%;background:#ff6b6b`;
+      return `<div class="bar" title="N° ${n} : ${money(x)}"><i style="${style}"></i></div>`;}).join('')}</div>
+    <div class="hint">Rappel : sur le long terme, toute combinaison de mises à la roulette européenne conserve la même espérance négative (−2,70 %) ; la répartition ne change que la volatilité et la forme de la distribution.</div>`;
+
+  // Tableau
+  const useColor = $('#color').checked;
+  $('#tbl tbody').innerHTML = R(0,36).map(n=>{
+    const wins = list.filter(b=>b.nums.includes(n)).length;
+    const rc = !useColor||!total ? '' : net[n]>0?'cg':gross[n]===0?'cr':'co';
+    return `<tr class="${rc}"><td><span class="nb ${colorOf(n)}">${n}</span></td><td>${total.toFixed(2)}</td><td>${gross[n].toFixed(2)}</td><td class="${cls(net[n])}"><b>${money(net[n])}</b></td><td>2,70 %</td><td>${wins}</td></tr>`;
+  }).join('');
+}
+
+/* ============ Interface ============ */
+(function ui(){
+  const box = $('#chips');
+  CHIPS.forEach(([v,c])=>{
+    const b = document.createElement('button');
+    b.className='chip'; b.textContent=v; b.style.background=c.split(';')[0];
+    if(c.includes('color')) b.style.color='#fff';
+    b.onclick=()=>setChip(v);
+    box.appendChild(b);
+  });
+  setChip(1);
+})();
+function setChip(v){
+  chip=v; $('#curChip').textContent=v;
+  document.querySelectorAll('.chip').forEach(b=>b.classList.toggle('sel',parseFloat(b.textContent)===v));
+}
+$('#setCustom').onclick=()=>{ const v=parseFloat($('#custom').value); if(v>0) setChip(r2(v)); };
+$('#undo').onclick=()=>{ if(history.length){ bets=history.pop(); refresh(); } };
+$('#clr').onclick=()=>{ if(bets.size){ history.push(new Map(bets)); bets.clear(); refresh(); } };
+$('#dbl').onclick=()=>{ if(bets.size){ history.push(new Map(bets)); bets.forEach((v,k)=>bets.set(k,r2(v*2))); refresh(); } };
+$('#calc').onclick=analyze;
+$('#color').onchange=analyze;
+$('#live').onchange=()=>{ if($('#live').checked) analyze(); };
+document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>
+  changeBets(SPECIALS[b.dataset.sp].map(([nums,w])=>[nums,r2(chip*w)])));
+refresh();
+</script>
+</body>
+</html>
