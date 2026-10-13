@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyseur de risques – Roulette européenne</title>
+<style>
+:root{--felt:#0b6b3a;--felt2:#095a31;--gold:#d4af37;--ink:#f5efd6;--red:#c0222b;--blk:#15151a;--bg:#0c1511;--card:#13211a}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at top,#173626,var(--bg));color:var(--ink);font-family:system-ui,Segoe UI,Roboto,sans-serif;min-height:100vh}
+header{padding:14px 18px;border-bottom:2px solid var(--gold);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between}
+h1{margin:0;font-size:1.25rem;color:var(--gold);letter-spacing:.5px}
+header small{opacity:.75}
+main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;padding:16px;max-width:1500px;margin:auto}
+@media(max-width:1000px){main{grid-template-columns:1fr;padding:10px}}
+.panel{background:var(--card);border:1px solid #2c4636;border-radius:12px;padding:12px;margin-bottom:14px}
+h2{font-size:1rem;margin:0 0 10px;color:var(--gold)}
+/* Plateau */
+.board{position:relative;width:100%;aspect-ratio:14/6;container-type:inline-size;background:var(--felt);border:3px solid var(--gold);border-radius:8px;user-select:none;touch-action:manipulation}
+.board>div{position:absolute}
+.cell{border:1px solid #efe6bd;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:2.4cqw;cursor:pointer;color:#fff}
+.cell:hover{filter:brightness(1.3)}
+.cell.r{background:var(--red)}.cell.b{background:var(--blk)}.cell.g{background:var(--felt2)}.cell.o{background:var(--felt);font-size:1.8cqw;text-align:center;line-height:1.1}
+.cell.dia{font-size:1.6cqw}
+.diamond{width:60%;height:60%;transform:rotate(45deg) scale(.7);}
+.zone{z-index:5;cursor:pointer;border-radius:50%}
+.zone:hover{background:rgba(255,255,255,.4);box-shadow:0 0 0 2px var(--gold)}
+.chipb{z-index:9;pointer-events:none;width:3.6cqw;height:3.6cqw;transform:translate(-50%,-50%);border-radius:50%;border:.35cqw dashed rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:1.25cqw;font-weight:800;color:#111;box-shadow:0 1px 3px #000a}
+/* Jetons */
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{width:46px;height:46px;border-radius:50%;border:4px dashed rgba(255,255,255,.85);font-weight:800;cursor:pointer;color:#111;box-shadow:0 2px 4px #000a;font-size:.8rem}
+.chip.sel{outline:3px solid var(--gold);outline-offset:2px;transform:translateY(-3px)}
+button,input[type=number]{font:inherit}
+.btn{background:#1f3a2b;color:var(--ink);border:1px solid var(--gold);border-radius:8px;padding:8px 12px;cursor:pointer}
+.btn:hover{background:#2b5239}.btn.pri{background:var(--gold);color:#111;font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+input[type=number]{width:80px;padding:7px;border-radius:6px;border:1px solid #456;background:#0c1511;color:var(--ink)}
+.hint{font-size:.78rem;opacity:.7;margin-top:8px}
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.stat{background:#0e1a14;border:1px solid #2c4636;border-radius:8px;padding:8px}
+.stat span{display:block;font-size:.72rem;opacity:.7}.stat b{font-size:1.05rem}
+.pos{color:#4cd97b}.neg{color:#ff6b6b}.neu{color:#ffb84d}
+.claude{border:1px dashed var(--gold);border-radius:10px;padding:8px;margin-top:10px}
+.claude h3{margin:0 0 6px;font-size:.85rem;color:var(--gold)}
+.tw{max-height:430px;overflow:auto;border:1px solid #2c4636;border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{padding:5px 8px;text-align:right;white-space:nowrap}
+th{position:sticky;top:0;background:#0b1510;color:var(--gold);z-index:2}
+td:first-child,th:first-child{text-align:center}
+.nb{display:inline-block;min-width:28px;padding:2px 0;border-radius:5px;color:#fff;font-weight:700;text-align:center}
+.nb.r{background:var(--red)}.nb.b{background:#000}.nb.g{background:var(--felt)}
+tr.cg{background:rgba(46,160,90,.30)}tr.co{background:rgba(240,160,40,.28)}tr.cr{background:rgba(200,40,50,.30)}
+.bars{display:flex;align-items:center;height:110px;gap:2px;margin-top:6px}
+.bar{flex:1;position:relative;height:100%}
+.bar i{position:absolute;left:0;right:0;border-radius:2px}
+label.ck{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+[data-tip]{position:relative;cursor:help}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:0;top:100%;z-index:50;width:max-content;max-width:230px;white-space:normal;background:#000;color:#fff;border:1px solid var(--gold);border-radius:6px;padding:6px 8px;font-size:.74rem;font-weight:400;text-align:left}
+.stat:nth-child(even):hover::after{left:auto;right:0}
+.btn.sel{background:var(--gold);color:#111;font-weight:700}
+th[data-k]{cursor:pointer}.cmp td:first-child,.cmp th:first-child{text-align:left}.win{background:rgba(46,160,90,.35);font-weight:700}
+select{background:#0c1511;color:var(--ink);border:1px solid #456;border-radius:6px;padding:7px}
+@media print{body{background:#fff;color:#000}header,main>section:first-child,.row,.chip{display:none!important}main{display:block;padding:0}.panel{background:#fff;border:1px solid #999;color:#000;break-inside:avoid}.tw{max-height:none!important;overflow:visible!important}th{background:#eee;color:#000;position:static}h2,h3,.hint,.stat{color:#000}.stat,.stat span{background:#fff}tr.cg,tr.co,tr.cr{print-color-adjust:exact;-webkit-print-color-adjust:exact}.pos,.neg,.neu{color:#000}}
+#gtip{position:fixed;z-index:999;display:none;max-width:260px;background:#000;color:#fff;border:1px solid var(--gold);border-radius:6px;padding:6px 8px;font-size:.76rem;pointer-events:none}
+[data-tip]:hover::after{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎰 Analyseur de risques — Roulette européenne (0–36)</h1>
+  <small>Calculateur stratégique · aucun tirage simulé</small>
+</header>
+<main>
+<section>
+  <div class="panel">
+    <h2>Tapis</h2>
+    <div class="row" style="margin:0 0 10px"><b>Stratégie :</b><button class="btn sel" data-st="A" title="Emplacement de stratégie A">A</button><button class="btn" data-st="B" title="Emplacement de stratégie B">B</button><button class="btn" id="cpy" title="Copie la stratégie active dans l'autre emplacement">⇄ Copier vers l'autre</button></div>
+    <div class="board" id="board"></div>
+    <div class="hint">Clic = ajouter le jeton sélectionné · clic droit (ou Maj+clic) = retirer un jeton · points d'intersection = chevaux, transversales, carrés, sizains.</div>
+  </div>
+  <div class="panel">
+    <h2>Jetons</h2>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <label>Valeur perso : <input type="number" id="custom" min="0.01" step="0.01" placeholder="ex. 3"></label>
+      <button class="btn" id="setCustom">Utiliser</button>
+      <span>Jeton actif : <b id="curChip">1</b></span>
+    </div>
+    <div class="row">
+      <button class="btn" id="undo">↶ Annuler</button>
+      <button class="btn" id="dbl">×2 Doubler</button>
+      <button class="btn" id="clr">🗑 Effacer</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>♟ Stratégies</h2>
+    <div class="hint" style="margin:0 0 6px"><b>Annonces</b> — disposition fixe (jeton actif × répartition standard)</div>
+    <div class="row" style="margin-top:0">
+      <button class="btn" data-sp="vois">Voisins du zéro (9)</button>
+      <button class="btn" data-sp="tiers">Tiers du cylindre (6)</button>
+      <button class="btn" data-sp="orph">Orphelins (5)</button>
+      <button class="btn" data-sp="zero">Jeu zéro (4) <small>· Claude</small></button>
+    </div>
+    <div class="hint" style="margin:10px 0 6px"><b>Répartitions connues</b> — dispositions fixes, utilisables dans toute l'analyse</div>
+    <div class="row" style="margin-top:0">
+      <button class="btn" data-sp="bond" title="14 sur Passe, 5 sur le sizain 13-18, 1 sur le 0 : 25 numéros couverts">James Bond (20)</button>
+      <button class="btn" data-sp="dz" title="1ère et 2ème douzaine : 24 numéros couverts">Deux douzaines (2)</button>
+      <button class="btn" data-sp="cols" title="Colonnes 1 et 2 : 24 numéros couverts">Deux colonnes (2)</button>
+      <button class="btn" data-sp="croise" title="1ère douzaine + colonne 1 : 20 numéros couverts">Douzaine + colonne (2)</button>
+      <button class="btn" data-sp="rzero" title="5 sur Rouge, 1 sur le 0">Rouge + zéro (6)</button>
+    </div>
+    <div class="hint" style="margin:10px 0 6px"><b>Progressions de mise</b> — ⚠ utilisables <u>uniquement dans la simulation « Risque &amp; bankroll »</u> : elles font varier le montant à chaque tour et s'appliquent à la disposition posée sur le tapis (idéalement une chance simple).</div>
+    <div class="row" style="margin-top:0"><select id="prog" title="Progression utilisée par la simulation de bankroll"></select></div>
+    <div class="hint" id="progd"></div>
+  </div>
+  <div class="panel"><h2>💾 Stratégies sauvegardées</h2>
+    <div class="row" style="margin-top:0"><input type="text" id="sname" placeholder="Nom de la stratégie" style="flex:1;min-width:140px;padding:7px;border-radius:6px;border:1px solid #456;background:#0c1511;color:var(--ink)"><button class="btn pri" id="saveS">Sauvegarder</button><button class="btn" id="csvH" title="Exporte tout l'historique en CSV">⬇ CSV historique</button></div>
+    <div id="lib" style="margin-top:10px"></div>
+    <div class="hint">Chaque sauvegarde est une version datée : rechargez-en une pour revenir en arrière. Stockage local au navigateur.</div></div>
+  <div class="panel"><h2>🎲 Risque &amp; bankroll</h2>
+    <div class="row" style="margin-top:0"><label title="Capital de départ pour la simulation">Capital <input type="number" id="bk" value="100" min="1"></label><label title="Nombre de tours rejoués (max 300)">Tours <input type="number" id="nt" value="100" min="1" max="300"></label><label title="Parcours simulés (100 à 20000)">Simulations <input type="number" id="ns" value="2000" min="100" max="20000" step="100"></label><label title="Arrêt quand le gain atteint +X (0 = désactivé). Mettre X = capital : probabilité de doubler avant la ruine.">Arrêt gain + <input type="number" id="sup" value="0" min="0"></label><label title="Arrêt quand la perte atteint −Y (0 = désactivé)">Arrêt perte − <input type="number" id="sdn" value="0" min="0"></label><label title="Mise maximale en multiple de la mise de base (limite de table)">Plafond × <input type="number" id="pmx" value="100" min="1"></label><button class="btn pri" id="runRisk">▶ Lancer l'analyse</button><button class="btn" id="runTour" title="Compare toutes les stratégies avec le même capital et les mêmes règles">🏆 Tournoi</button></div>
+    <div id="risk" style="margin-top:10px"><div class="hint">Seuil de rentabilité, probabilités sur N tours, distribution et simulation de bankroll pour la stratégie active. La progression choisie (panneau Stratégies) s'applique à la simulation de bankroll.</div></div><div id="tour" style="margin-top:12px"></div></div>
+</section>
+
+<section>
+  <div class="panel">
+    <h2>Analyse</h2>
+    <div class="row" style="margin-top:0">
+      <button class="btn pri" id="calc">⚡ Calculer / Analyser</button>
+      <label class="ck"><input type="checkbox" id="live" checked> Mise à jour en temps réel</label>
+      <label class="ck"><input type="checkbox" id="color" checked> Coloration automatique</label>
+    </div>
+    <div class="stats" id="stats" style="margin-top:12px"></div>
+    <div class="claude" id="extra"></div>
+  </div>
+  <div class="panel"><h2>📋 Synthèse de la stratégie active</h2><div id="sum"></div></div>
+  <div class="panel"><h2>⚖️ Comparaison A / B</h2><div id="cmp"></div></div>
+  <div class="panel">
+    <h2>Synthèse par numéro</h2>
+    <div class="row" style="margin:0 0 8px"><label>Filtre : <select id="flt"><option value="all">Tous les numéros</option><option value="win">Gains positifs uniquement</option><option value="neu">Remboursés (net = 0)</option><option value="part">Pertes partielles</option><option value="loss">Pertes totales</option><option value="red">Rouges</option><option value="blk">Noirs</option></select></label><span class="hint" id="cnt" style="margin:0"></span><button class="btn" id="csvT" title="Exporte le tableau affiché (tri et filtre appliqués) avec le résumé de la stratégie">⬇ CSV</button><button class="btn" id="prt" title="Imprime la synthèse (le tapis est masqué)">🖨 Imprimer</button></div>
+    <div class="tw"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+    <div class="hint">Gain brut = total rendu par le croupier (mise gagnante + gains). Gain net = gain brut − mise totale engagée. <b>Légende :</b> vert = bénéfice · orange = remboursé ou perte partielle · rouge = perte totale.</div>
+  </div>
+</section>
+</main>
+
+<script>
+/* ============ Données de base ============ */
+const RED = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+const colorOf = n => n===0 ? 'g' : RED.has(n) ? 'r' : 'b';
+const R = (a,b) => Array.from({length:b-a+1},(_,i)=>a+i);
+const key = nums => [...nums].sort((a,b)=>a-b).join(',');
+const r2 = x => Math.round(x*100)/100;
+const fmt = x => (Math.round(x*100)/100).toString();
+const money = x => (x>=0?'':'−') + Math.abs(x).toFixed(2);
+const $ = s => document.querySelector(s);
+const CHIPS = [[0.5,'#d9d9d9'],[1,'#f2f2f2'],[2,'#f4a6c0'],[5,'#e05a5a'],[10,'#5a9be0'],[25,'#5cc47a'],[50,'#f0a040'],[100,'#222;color:#fff']];
+const chipColor = v => { const c=[...CHIPS].reverse().find(c=>v>=c[0]); return c?c[1]:'#fff'; };
+
+/* Annonces : [numéros, poids en jetons] */
+const SPECIALS = {
+  vois:[[[0,2,3],2],[[4,7],1],[[12,15],1],[[18,21],1],[[19,22],1],[[32,35],1],[[25,26,28,29],2]],
+  tiers:[[[5,8],1],[[10,11],1],[[13,16],1],[[23,24],1],[[27,30],1],[[33,36],1]],
+  orph:[[[1],1],[[6,9],1],[[14,17],1],[[17,20],1],[[31,34],1]],
+  zero:[[[0,3],1],[[12,15],1],[[26],1],[[32,35],1]]
+};
+
+/* ============ État ============ */
+let chip = 1;
+let bets = new Map();      // clé "n1,n2,…" -> montant
+let hist = [];          // pile d'instantanés pour « Annuler »
+const zones = new Map();   // clé -> {label,x,y} (centre en unités de grille)
+
+/* ============ Construction du tapis ============ */
+// Grille : 14 colonnes (0 | 1..12 | colonnes 2:1) × 5 lignes (3 numéros, douzaines, chances simples)
+const UW = 100/14, UH = 100/5;
+const cell = (c,r) => 3*(c-1) + 3 - r;       // numéro en colonne c (1..12), ligne r (0=haut)
+const board = $('#board');
+
+function box(x,y,w,h,cls,html){
+  const d = document.createElement('div');
+  d.className = cls;
+  Object.assign(d.style,{left:x*UW+'%',top:y*UH+'%',width:w*UW+'%',height:h*UH+'%'});
+  if(html!==undefined) d.innerHTML = html;
+  board.appendChild(d); return d;
+}
+// Zone cliquable : (x,y,w,h) en unités ; register => enregistre la position du jeton
+function zone(nums,label,x,y,w,h,cls){
+  const k = key(nums);
+  if(!zones.has(k)) zones.set(k,{label,x:x+w/2,y:y+h/2});
+  const d = box(x,y,w,h,cls);
+  d.title = label;
+  d.addEventListener('click',e=>{ e.shiftKey ? changeBets([[nums,-chip]]) : changeBets([[nums,chip]]); });
+  d.addEventListener('contextmenu',e=>{ e.preventDefault(); changeBets([[nums,-chip]]); });
+  return d;
+}
+const inner = (nums,label,cx,cy,w,h) => zone(nums,label,cx-w/2,cy-h/2,w,h,'zone');
+
+(function build(){
+  // Zéro
+  zone([0],'Plein 0',0,0,1,3,'cell g').textContent = '0';
+  // Numéros
+  for(let c=1;c<=12;c++) for(let r=0;r<3;r++){
+    const n = cell(c,r);
+    zone([n],'Plein '+n,c,r,1,1,'cell '+colorOf(n)).textContent = n;
+  }
+  // Colonnes (2:1) : haut = multiples de 3
+  [[0,3],[1,2],[2,1]].forEach(([r,m],i)=>{
+    const nums = R(1,36).filter(n=>n%3===m%3);
+    zone(nums,'Colonne '+(3-i===3?3:3-i),13,r,1,1,'cell o').textContent='2:1';
+  });
+  // Douzaines
+  ['1ère douzaine (P12)','2ème douzaine (M12)','3ème douzaine (D12)'].forEach((l,i)=>
+    zone(R(12*i+1,12*i+12),l,1+4*i,3,4,1,'cell o').textContent = ['1ère 12','2ème 12','3ème 12'][i]);
+  // Chances simples
+  const ch = [
+    ['Manque (1-18)',R(1,18),'Manque 1-18','o'],
+    ['Pair',R(1,36).filter(n=>n%2===0),'Pair','o'],
+    ['Rouge',R(1,36).filter(n=>RED.has(n)),'<div class="diamond" style="background:var(--red)"></div>','r'],
+    ['Noir',R(1,36).filter(n=>n>0&&!RED.has(n)),'<div class="diamond" style="background:#000;border:1px solid #666"></div>','b'],
+    ['Impair',R(1,36).filter(n=>n%2===1),'Impair','o'],
+    ['Passe (19-36)',R(19,36),'Passe 19-36','o']];
+  ch.forEach(([l,nums,html,cls],i)=>{ zone(nums,l,1+2*i,4,2,1,'cell '+cls).innerHTML = html; });
+
+  // Zones intérieures (intersections), placées en dernier pour être au-dessus
+  for(let c=1;c<=12;c++){
+    for(let r=0;r<3;r++){
+      if(c<12) inner([cell(c,r),cell(c+1,r)],`Cheval ${cell(c,r)}/${cell(c+1,r)}`,c+1,r+.5,.3,.5);
+      if(r<2)  inner([cell(c,r),cell(c,r+1)],`Cheval ${cell(c,r)}/${cell(c,r+1)}`,c+.5,r+1,.5,.3);
+      if(c<12&&r<2) inner([cell(c,r),cell(c+1,r),cell(c,r+1),cell(c+1,r+1)],'Carré '+key([cell(c,r),cell(c+1,r),cell(c,r+1),cell(c+1,r+1)]).replace(/,/g,'-'),c+1,r+1,.3,.3);
+    }
+    inner(R(3*c-2,3*c),`Transversale ${3*c-2}-${3*c}`,c+.5,3,.5,.3);
+    if(c<12) inner(R(3*c-2,3*c+3),`Sizain ${3*c-2}-${3*c+3}`,c+1,3,.3,.3);
+  }
+  // Liens avec le zéro
+  for(let r=0;r<3;r++) inner([0,cell(1,r)],`Cheval 0/${cell(1,r)}`,1,r+.5,.3,.5);
+  inner([0,2,3],'Transversale 0-2-3',1,1,.3,.3);
+  inner([0,1,2],'Transversale 0-1-2',1,2,.3,.3);
+  inner([0,1,2,3],'Carré 0-1-2-3',1,3,.3,.3);
+})();
+
+/* ============ Gestion des mises ============ */
+function changeBets(list){
+  hist.push(new Map(bets));
+  list.forEach(([nums,amt])=>{
+    const k = key(nums);
+    const v = r2((bets.get(k)||0)+amt);
+    v>0 ? bets.set(k,v) : bets.delete(k);
+  });
+  refresh();
+}
+function refresh(){
+  // Jetons posés sur le tapis
+  board.querySelectorAll('.chipb').forEach(e=>e.remove());
+  bets.forEach((amt,k)=>{
+    const z = zones.get(k); if(!z) return;
+    const d = box(z.x-.0,z.y-.0,0,0,'chipb',fmt(amt));
+    Object.assign(d.style,{left:z.x*UW+'%',top:z.y*UH+'%',width:'',height:'',background:chipColor(amt).split(';')[0]});
+    if(chipColor(amt).includes('color')) d.style.color='#fff';
+  });
+  if($('#live').checked) analyze(); else markStale();
+}
+function markStale(){ $('#calc').textContent='⚡ Calculer / Analyser (mises modifiées)'; }
+
+/* ============ Analyse ============ */
+// Deux emplacements de stratégie (A/B) ; `bets` et `hist` pointent sur l'emplacement actif
+const S={A:{bets:new Map(),hist:[]},B:{bets:new Map(),hist:[]}};
+let cur='A', last=null, sortK='n', sortD=1, filt='all';
+const cls=x=>x>0?'pos':x<0?'neg':'neu';
+const lab=k=>(zones.get(k)||{}).label||k;
+const pc=x=>(x/37*100).toFixed(2)+'%';
+const st=(l,v,c,t)=>`<div class="stat" data-tip="${t}"><span>${l} ⓘ</span><b class="${c||''}">${v}</b></div>`;
+const bars=(net,m)=>'<div class="bars">'+net.map((x,n)=>`<div class="bar" title="N° ${n} : gain net ${money(x)}"><i style="${x>=0?'bottom':'top'}:50%;height:${Math.abs(x)/m*50}%;background:${x>=0?'#4cd97b':'#ff6b6b'}"></i></div>`).join('')+'</div>';
+
+/* Calcul complet d'une stratégie (Map de mises) */
+function compute(m){
+  const list=[...m].map(([k,amt])=>({nums:k.split(',').map(Number),amt}));
+  const total=r2(list.reduce((s,b)=>s+b.amt,0));
+  // Gain brut = mise × 36 / nb de numéros couverts (mise rendue incluse)
+  const gross=R(0,36).map(n=>r2(list.reduce((s,b)=>b.nums.includes(n)?s+b.amt*36/b.nums.length:s,0)));
+  const net=gross.map(g=>r2(g-total));
+  const ev=gross.reduce((s,g)=>s+g,0)/37-total;
+  return {list,total,gross,net,ev,sd:Math.sqrt(net.reduce((s,x)=>s+(x-ev)**2,0)/37),
+    win:net.filter(x=>x>0).length,neu:net.filter(x=>x===0).length,
+    part:R(0,36).filter(n=>gross[n]>0&&net[n]<0).length,loss:gross.filter(g=>g===0).length,
+    max:Math.max(...net),min:Math.min(...net),cov:gross.filter(g=>g>0).length};
+}
+
+function analyze(){
+  $('#calc').textContent='⚡ Calculer / Analyser';
+  const a=last=compute(bets), m=Math.max(a.max,-a.min,1);
+  $('#stats').innerHTML=[
+    st('Mise totale',a.total.toFixed(2),'','Somme de tous les jetons posés sur le tapis (stratégie active).'),
+    st('P(bénéfice)',`${pc(a.win)} (${a.win}/37)`,'pos','Part des 37 numéros pour lesquels le gain net est strictement positif.'),
+    st('P(remboursé exact)',`${pc(a.neu)} (${a.neu}/37)`,'neu','Numéros pour lesquels le gain brut égale exactement la mise totale : ni gain ni perte.'),
+    st('P(perte partielle)',`${pc(a.part)} (${a.part}/37)`,'neu','Numéros où une partie de vos mises gagne mais le gain brut reste inférieur à la mise totale.'),
+    st('P(perte totale)',`${pc(a.loss)} (${a.loss}/37)`,'neg','Numéros qui ne touchent aucune de vos mises : toute la mise est perdue.'),
+    st('Espérance nette',money(a.ev),cls(a.ev),'Moyenne du gain net sur les 37 numéros équiprobables. Négative = perte moyenne attendue par tirage.'),
+    st('ROI espéré',a.total?(a.ev/a.total*100).toFixed(2)+'%':'—',cls(a.ev),'Espérance divisée par la mise totale. Elle vaut toujours −2,70 % à la roulette européenne, quelle que soit la combinaison.'),
+    st('Proba par numéro','1/37 = 2,70 %','','Chaque numéro (0 à 36) a la même probabilité de sortie.')].join('');
+  $('#extra').innerHTML='<h3>💡 Analyses ajoutées par Claude</h3><div class="stats">'+[
+    st('Numéros couverts',a.cov+'/37','','Nombre de numéros qui touchent au moins une de vos mises.'),
+    st('Meilleur résultat net',money(a.max),cls(a.max),'Gain net le plus élevé possible sur un tirage.'),
+    st('Pire résultat net',money(a.min),cls(a.min),'Perte la plus forte possible sur un tirage (égale à la mise totale si un numéro ne touche rien).'),
+    st('Écart-type',a.sd.toFixed(2),'','Volatilité : dispersion des gains nets autour de l\'espérance. Plus il est élevé, plus les résultats sont swingants.'),
+    st('Avantage maison',a.total?(-a.ev/a.total*100).toFixed(2)+'%':'2,70 %','','Part de la mise que le casino garde en moyenne. Constant à 2,70 % pour la roulette européenne.'),
+    st('Gain max / mise',a.total?(a.max/a.total).toFixed(2)+'×':'—','','Meilleur gain net rapporté à la mise totale : mesure le potentiel de la stratégie.')].join('')+
+    '</div><div class="hint">Gain net par numéro (0 → 36), survolez une barre pour le détail :</div>'+bars(a.net,m)+
+    '<div class="hint">Rappel : la répartition des mises ne change que la volatilité, pas l\'espérance (−2,70 %).</div>';
+  renderSummary(a); renderCompare(); renderTable();
+}
+
+/* Encadré de synthèse : paris posés + toutes les combinaisons de résultats */
+function renderSummary(a){
+  const el=$('#sum');
+  if(!a.total){ el.innerHTML='<div class="hint">Posez des jetons pour voir la synthèse.</div>'; return; }
+  const G=new Map();
+  R(0,36).forEach(n=>{
+    const s=a.list.filter(b=>b.nums.includes(n)).map(b=>lab(key(b.nums))).join(' + ')||'Aucune mise gagnante';
+    const o=G.get(s)||{s,nums:[],g:a.gross[n],net:a.net[n]}; o.nums.push(n); G.set(s,o);
+  });
+  const t1=a.list.map(b=>{const n=b.nums.length,l=lab(key(b.nums));
+    return `<tr title="${l} : ${fmt(b.amt)} × ${36/n} = ${fmt(b.amt*36/n)} rendu si ce pari gagne"><td style="text-align:left">${l}</td><td>${fmt(b.amt)}</td><td>${36/n-1}:1</td><td>${n}</td><td>${fmt(b.amt*36/n)}</td></tr>`}).join('');
+  const t2=[...G.values()].sort((x,y)=>y.net-x.net).map(o=>
+    `<tr class="${o.net>0?'cg':o.g===0?'cr':'co'}" title="${o.nums.length} numéro(s) : ${pc(o.nums.length)} de chances"><td style="text-align:left;white-space:normal">${o.s}</td><td style="white-space:normal">${o.nums.join(', ')}</td><td>${pc(o.nums.length)}</td><td>${o.g.toFixed(2)}</td><td class="${cls(o.net)}"><b>${money(o.net)}</b></td></tr>`).join('');
+  const T=(h)=>'<tr>'+h.map(([t,i])=>`<th title="${i}">${t}</th>`).join('')+'</tr>';
+  el.innerHTML=`<p style="margin:0 0 10px;line-height:1.5">Mise totale <b>${a.total.toFixed(2)}</b> sur <b>${a.list.length}</b> pari(s). Gain dans <b class="pos">${pc(a.win)}</b> des cas (${a.win}/37), remboursé dans ${pc(a.neu)}, perte partielle ${pc(a.part)}, perte totale ${pc(a.loss)}. Meilleur net <b class="${cls(a.max)}">${money(a.max)}</b>, pire <b class="${cls(a.min)}">${money(a.min)}</b>, espérance <b class="${cls(a.ev)}">${money(a.ev)}</b> (ROI ${(a.ev/a.total*100).toFixed(2)} %).</p>
+  <div class="hint">Paris posés</div><div class="tw" style="max-height:200px"><table><thead>${T([['Pari','Zone du tapis'],['Mise','Montant cumulé'],['Paiement','Rapport du pari'],['Nb n°','Numéros couverts'],['Rendu si gagne','Mise × 36 / nb de numéros'] ])}</thead><tbody>${t1}</tbody></table></div>
+  <div class="hint" style="margin-top:10px">Toutes les issues possibles (regroupées par mises gagnantes)</div><div class="tw" style="max-height:260px"><table><thead>${T([['Mises gagnantes','Paris qui touchent pour ces numéros'],['Numéros','Numéros de la roulette concernés'],['Proba','Nombre de numéros / 37'],['Gain brut','Total rendu'],['Gain net','Gain brut − mise totale']])}</thead><tbody>${t2}</tbody></table></div>`;
+}
+
+/* Comparaison côte à côte des stratégies A et B */
+function renderCompare(){
+  const A=compute(cur==='A'?bets:S.A.bets), B=compute(cur==='B'?bets:S.B.bets);
+  const M=[['Mise totale',x=>x.total,0,'Total misé'],['P(bénéfice) %',x=>x.win/37*100,1,'Plus haut = mieux'],['P(remboursé) %',x=>x.neu/37*100,0,'Gain brut = mise'],['P(perte partielle) %',x=>x.part/37*100,0,'Perte réduite'],['P(perte totale) %',x=>x.loss/37*100,-1,'Plus bas = mieux'],['Espérance nette',x=>x.ev,1,'Moyenne du gain net'],['Écart-type',x=>x.sd,0,'Volatilité'],['Meilleur net',x=>x.max,1,'Gain maximal'],['Pire net',x=>x.min,1,'Perte maximale'],['Numéros couverts',x=>x.cov,0,'Sur 37']];
+  const rows=M.map(([l,f,d,t])=>{const a=f(A),b=f(B),w=d&&Math.abs(a-b)>1e-9?(a-b)*d>0?'A':'B':'';
+    return `<tr title="${t}"><td>${l}</td><td class="${w==='A'?'win':''}">${money(a)}</td><td class="${w==='B'?'win':''}">${money(b)}</td></tr>`}).join('');
+  const m=Math.max(A.max,-A.min,B.max,-B.min,1);
+  $('#cmp').innerHTML=`<div class="tw" style="max-height:none"><table class="cmp"><thead><tr><th>Indicateur</th><th>Stratégie A</th><th>Stratégie B</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="hint">Vert = meilleure valeur (là où la comparaison a un sens). Gain net par numéro — A puis B (même échelle) :</div>${bars(A.net,m)}${bars(B.net,m)}`;
+}
+
+/* Tableau par numéro avec tri et filtres */
+const COLS=[['n','N°','Numéro de la roulette. Cliquer pour trier.'],['tot','Mise totale','Total misé sur le tapis (identique pour chaque numéro).'],['g','Gain brut','Total rendu si ce numéro sort (mises gagnantes + gains).'],['net','Gain net','Gain brut − mise totale. Survolez une ligne pour le détail du calcul.'],['p','Proba','Chance de sortie : 1/37.'],['w','Mises gagnantes','Nombre de paris posés qui couvrent ce numéro.']];
+function renderTable(){
+  const a=last;
+  $('#tbl thead').innerHTML='<tr>'+COLS.map(([k,l,t])=>`<th data-k="${k}" title="${t}">${l}${sortK===k?(sortD>0?' ▲':' ▼'):''}</th>`).join('')+'</tr>';
+  const F={all:()=>1,win:r=>r.net>0,neu:r=>r.net===0,part:r=>r.g>0&&r.net<0,loss:r=>r.g===0,red:r=>colorOf(r.n)==='r',blk:r=>colorOf(r.n)==='b'};
+  const rows=R(0,36).map(n=>({n,tot:a.total,g:a.gross[n],net:a.net[n],p:2.7,w:a.list.filter(b=>b.nums.includes(n)).length}))
+    .filter(F[filt]).sort((x,y)=>(x[sortK]-y[sortK])*sortD||x.n-y.n);
+  const useColor=$('#color').checked;
+  lastRows=rows; $('#cnt').textContent=rows.length+' numéro(s) affiché(s)';
+  $('#tbl tbody').innerHTML=rows.map(r=>{
+    const det=a.list.filter(b=>b.nums.includes(r.n)).map(b=>`${lab(key(b.nums))} ${fmt(b.amt)}×${36/b.nums.length}=${fmt(b.amt*36/b.nums.length)}`).join(' + ')||'aucune mise gagnante';
+    const rc=!useColor||!a.total?'':r.net>0?'cg':r.g===0?'cr':'co';
+    return `<tr class="${rc}" title="N° ${r.n} : ${det} → brut ${r.g.toFixed(2)} − mise ${a.total.toFixed(2)} = net ${money(r.net)}"><td><span class="nb ${colorOf(r.n)}">${r.n}</span></td><td>${r.tot.toFixed(2)}</td><td>${r.g.toFixed(2)}</td><td class="${cls(r.net)}"><b>${money(r.net)}</b></td><td>2,70 %</td><td>${r.w}</td></tr>`}).join('');
+}
+$('#tbl thead').onclick=e=>{const th=e.target.closest('th'); if(!th) return;
+  const k=th.dataset.k; if(sortK===k) sortD*=-1; else{ sortK=k; sortD=k==='n'?1:-1; } renderTable(); };
+$('#flt').onchange=e=>{ filt=e.target.value; renderTable(); };
+
+/* Changement de stratégie A/B */
+function switchTo(k){
+  S[cur]={bets,hist}; cur=k; ({bets,hist}=S[k]);
+  document.querySelectorAll('[data-st]').forEach(b=>b.classList.toggle('sel',b.dataset.st===k));
+  refresh();
+}
+document.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>switchTo(b.dataset.st));
+$('#cpy').onclick=()=>{ const o=cur==='A'?'B':'A'; S[o]={bets:new Map(bets),hist:[]}; analyze(); };
+
+/* ============ Risque, bankroll, bibliothèque, exports (v3) ============ */
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let lastRows=[], lib=[];
+try{ lib=JSON.parse(localStorage.getItem('rlt_lib')||'[]'); }catch(e){}
+const persist=()=>{ try{ localStorage.setItem('rlt_lib',JSON.stringify(lib)); }catch(e){} };
+const fr=x=>String(r2(x)).replace('.',',');
+
+/* Téléchargement CSV (séparateur « ; » + BOM pour Excel FR) */
+function dl(name,rows){
+  const csv='\ufeff'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+
+/* ---- Distribution exacte du gain net cumulé après n tours (convolution) ---- */
+function convo(net,marks){
+  const base=new Map(); net.forEach(x=>base.set(x,(base.get(x)||0)+1/37));
+  let d=new Map([[0,1]]); const out=new Map(), mx=Math.max(...marks);
+  for(let n=1;n<=mx;n++){
+    const nd=new Map();
+    d.forEach((p,v)=>base.forEach((q,x)=>{ const k=r2(v+x); nd.set(k,(nd.get(k)||0)+p*q); }));
+    d=nd; if(marks.includes(n)) out.set(n,[...d].sort((a,b)=>a[0]-b[0]));
+  }
+  return out;
+}
+const quant=(d,p)=>{ let c=0; for(const [v,pr] of d){ c+=pr; if(c>=p-1e-12) return v; } return d[d.length-1][0]; };
+const pAbove=(d,t)=>d.reduce((s,[v,p])=>v>t+1e-9?s+p:s,0);
+
+function runRisk(){
+  const a=compute(bets), el=$('#risk');
+  if(!a.total){ el.innerHTML='<div class="hint">Posez des jetons d\'abord.</div>'; return; }
+  const C=+$('#bk').value||0, N=Math.min(300,Math.max(1,~~$('#nt').value)), NS=Math.min(20000,Math.max(100,~~$('#ns').value));
+  // 1) Seuil de rentabilité : gain moyen d'un tour gagnant vs perte moyenne d'un tour perdant
+  const W=a.net.filter(x=>x>0), L=a.net.filter(x=>x<0), avg=v=>v.reduce((s,x)=>s+x,0)/v.length;
+  let be;
+  if(!W.length) be='Aucun tour gagnant possible : le seuil est inatteignable.';
+  else if(!L.length) be='Aucun tour perdant possible : la stratégie ne perd jamais.';
+  else{ const G=avg(W), Lm=-avg(L), f=Lm/(G+Lm), act=W.length/(W.length+L.length);
+    be=`Un tour gagnant rapporte en moyenne <b class="pos">+${G.toFixed(2)}</b>, un tour perdant coûte <b class="neg">−${Lm.toFixed(2)}</b> : 1 gain compense <b>${(G/Lm).toFixed(2)}</b> perte(s). Il faut gagner au moins <b>${(f*100).toFixed(1)} %</b> des tours décisifs, soit <b>${Math.ceil(N*f-1e-9)}</b> sur ${N}. Votre fréquence réelle est de <b class="${act>=f?'pos':'neg'}">${(act*100).toFixed(1)} %</b> (${act>=f?'au-dessus':'sous'} le seuil).`; }
+  // 2) Multi-tours exact
+  const marks=[...new Set([1,10,50,100,N])].sort((x,y)=>x-y), D=convo(a.net,marks);
+  const rows=marks.map(n=>{ const d=D.get(n);
+    return `<tr title="Après ${n} tour(s), avec cette stratégie rejouée à l'identique"><td>${n}</td><td class="pos">${(pAbove(d,0)*100).toFixed(1)} %</td><td class="neg">${((1-pAbove(d,-1e-9))*100).toFixed(1)} %</td><td>${money(quant(d,.05))}</td><td>${money(quant(d,.25))}</td><td><b>${money(quant(d,.5))}</b></td><td>${money(quant(d,.75))}</td><td>${money(quant(d,.95))}</td><td class="${cls(a.ev)}">${money(n*a.ev)}</td></tr>`}).join('');
+  const dN=D.get(N);
+  el.innerHTML=`<div class="stat" style="margin-bottom:10px" data-tip="Basé sur l'écart entre le gain moyen et la perte moyenne d'un tour. Les tours remboursés sont ignorés."><span>⚖️ Seuil de rentabilité ⓘ</span><div style="line-height:1.5">${be}</div></div>
+  <div class="hint">Probabilités sur plusieurs tours (calcul exact, gains nets cumulés)</div>
+  <div class="tw" style="max-height:none"><table><thead><tr>${[['Tours','Nombre de tours rejoués'],['P(bénéfice)','Probabilité que le cumul soit > 0'],['P(perte)','Probabilité que le cumul soit < 0'],['Q5','5 % des cas font pire'],['Q25','Premier quartile'],['Médiane','Un cas sur deux fait mieux'],['Q75','Troisième quartile'],['Q95','5 % des cas font mieux'],['Espérance','Tours × espérance par tour']].map(([t,h])=>`<th title="${h}">${t}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="hint" style="margin-top:10px">Distribution du gain net cumulé après ${N} tour(s) : une barre = une plage de gains, hauteur = probabilité (survol pour le détail)</div>
+  ${chart(dN,[[0,'#ffffff','0'],[quant(dN,.5),'#ffd24c','médiane'],[quant(dN,.05),'#ff6b6b','Q5'],[quant(dN,.95),'#4cd97b','Q95']])}
+  ${bankrollHTML(a,C,N,NS)}`;
+}
+
+/* ---- Bibliothèque de stratégies (sauvegarde, renommage, historique) ---- */
+function renderLib(){
+  $('#lib').innerHTML=lib.length?lib.map(e=>`<div class="stat" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><div style="flex:1;min-width:150px"><b>${esc(e.name)}</b><br><small style="opacity:.7">${e.date} · mise ${e.total.toFixed(2)} · P(bénéf.) ${(e.pw*100).toFixed(1)} % · EV ${money(e.ev)}</small></div><button class="btn" data-a="load" data-id="${e.id}" title="Charger dans la stratégie active">↩ Charger</button><button class="btn" data-a="ren" data-id="${e.id}" title="Renommer">✏</button><button class="btn" data-a="del" data-id="${e.id}" title="Supprimer">🗑</button></div>`).join(''):'<div class="hint">Aucune stratégie sauvegardée.</div>';
+}
+$('#saveS').onclick=()=>{
+  if(!bets.size) return alert('Aucune mise à sauvegarder.');
+  const a=compute(bets), name=$('#sname').value.trim()||'Stratégie '+(lib.length+1);
+  lib.unshift({id:Date.now(),name,date:new Date().toLocaleString('fr-FR'),bets:[...bets],total:a.total,ev:a.ev,pw:a.win/37});
+  persist(); renderLib(); $('#sname').value='';
+};
+$('#lib').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const i=lib.findIndex(x=>x.id==b.dataset.id), en=lib[i]; if(!en) return;
+  if(b.dataset.a==='load'){ hist.push(new Map(bets)); bets=new Map(en.bets); refresh(); }
+  else if(b.dataset.a==='ren'){ const n=prompt('Nouveau nom :',en.name); if(n&&n.trim()){ en.name=n.trim(); persist(); renderLib(); } }
+  else if(confirm('Supprimer « '+en.name+' » ?')){ lib.splice(i,1); persist(); renderLib(); }
+};
+$('#csvH').onclick=()=>dl('historique_strategies.csv',[['Nom','Date','Mise totale','Nb paris','P(bénéfice)','Espérance','ROI','Détail des paris (pari:mise)'],
+  ...lib.map(e=>[e.name,e.date,fr(e.total),e.bets.length,(e.pw*100).toFixed(2).replace('.',',')+' %',fr(e.ev),e.total?fr(e.ev/e.total*100)+' %':'',e.bets.map(([k,v])=>lab(k)+':'+fr(v)).join(' | ')])]);
+
+/* ---- Export CSV / impression de la synthèse ---- */
+$('#csvT').onclick=()=>{ const a=last; if(!a) return;
+  dl('synthese_roulette.csv',[['Stratégie',cur],['Mise totale',fr(a.total)],['P(bénéfice)',pc(a.win)],['Espérance nette',fr(a.ev)],['ROI',a.total?fr(a.ev/a.total*100)+' %':''],[],
+    ['N°','Couleur','Mise totale','Gain brut','Gain net','Proba','Mises gagnantes'],
+    ...lastRows.map(r=>[r.n,{r:'Rouge',b:'Noir',g:'Vert'}[colorOf(r.n)],fr(r.tot),fr(r.g),fr(r.net),'2,70 %',r.w])]); };
+$('#prt').onclick=()=>window.print();
+$('#runRisk').onclick=runRisk;
+renderLib();
+
+/* ============ v4 : stratégies, progressions, arrêts, tournoi, risque avancé ============ */
+// Bulles info globales (instantanées, non coupées par les zones scrollables)
+const tipEl=document.createElement('div'); tipEl.id='gtip'; document.body.appendChild(tipEl);
+document.addEventListener('mouseover',e=>{
+  const el=e.target.closest&&e.target.closest('[title],[data-tip]');
+  if(el&&el.hasAttribute('title')){ el.dataset.tip=el.getAttribute('title'); el.removeAttribute('title'); }
+  const t=el&&el.dataset.tip; if(!t){ tipEl.style.display='none'; return; }
+  tipEl.textContent=t; tipEl.style.display='block';
+  const r=el.getBoundingClientRect(), w=tipEl.offsetWidth, h=tipEl.offsetHeight;
+  tipEl.style.left=Math.max(4,Math.min(innerWidth-w-4,r.left))+'px';
+  tipEl.style.top=(r.bottom+h+10>innerHeight?r.top-h-6:r.bottom+6)+'px';
+});
+
+/* Répartitions connues (disposition fixe) : [numéros, poids en jetons] */
+const C1=R(1,36).filter(n=>n%3===1), C2=R(1,36).filter(n=>n%3===2), ROUGE=R(1,36).filter(n=>RED.has(n));
+Object.assign(SPECIALS,{
+  bond:[[R(19,36),14],[R(13,18),5],[[0],1]], dz:[[R(1,12),1],[R(13,24),1]], cols:[[C1,1],[C2,1]],
+  croise:[[R(1,12),1],[C1,1]], rzero:[[ROUGE,5],[[0],1]]});
+
+/* Progressions : [nom, description, init, mise à jour(état, w=±1, u=gain net en unités de mise de base)] */
+const FIB=[1,1,2,3,5,8,13,21,34,55,89,144,233,377,610,987], SEQ=[1,3,2,6];
+const PROG={
+  plate:['Mise plate','Même mise à chaque tour : référence de comparaison.',()=>({m:1}),()=>{}],
+  mart:['Martingale','Double la mise après une perte, retour à la mise de base après un gain. Petits gains fréquents, perte énorme rare.',()=>({m:1}),(s,w)=>{ w<0?s.m*=2:s.m=1; }],
+  paroli:['Contre-martingale (Paroli)','Double après un gain, jusqu\'à 3 gains d\'affilée, puis retour à la base ; retour aussi après une perte.',()=>({m:1,k:0}),(s,w)=>{ if(w>0){ if(++s.k>=3){s.m=1;s.k=0;} else s.m*=2; } else {s.m=1;s.k=0;} }],
+  dal:['d\'Alembert','+1 unité après une perte, −1 après un gain (minimum 1).',()=>({m:1}),(s,w)=>{ s.m=w<0?s.m+1:Math.max(1,s.m-1); }],
+  fib:['Fibonacci','Avance dans la suite 1-1-2-3-5-8… après une perte, recule de deux crans après un gain.',()=>({i:0,m:1}),(s,w)=>{ s.i=w<0?Math.min(15,s.i+1):Math.max(0,s.i-2); s.m=FIB[s.i]; }],
+  lab:['Labouchère','Liste 1-2-3-4 : mise = premier + dernier ; gain = on raye les deux, perte = on ajoute la mise à la liste.',()=>({L:[1,2,3,4],m:5}),(s,w)=>{
+    if(w>0){ if(s.L.length>1){s.L.shift();s.L.pop();} else s.L=[]; } else s.L.push(s.m);
+    if(!s.L.length) s.L=[1,2,3,4]; s.m=s.L.length>1?s.L[0]+s.L[s.L.length-1]:s.L[0]; }],
+  osc:['Oscar\'s Grind','Vise +1 unité par cycle : la mise ne monte qu\'après un gain, sans dépasser ce qu\'il manque pour l\'objectif.',()=>({m:1,p:0}),(s,w,u)=>{
+    s.p+=u*s.m; if(s.p>=1-1e-9){s.p=0;s.m=1;} else if(w>0) s.m=Math.min(s.m+1,Math.max(1,Math.ceil(1-s.p-1e-9))); }],
+  s1326:['1-3-2-6','Après chaque gain on passe au palier suivant (1, 3, 2, 6 unités) ; perte ou 4 gains : retour à 1.',()=>({i:0,m:1}),(s,w)=>{ s.i=w>0&&s.i<3?s.i+1:0; s.m=SEQ[s.i]; }]
+};
+Object.entries(PROG).forEach(([k,p])=>$('#prog').add(new Option(p[0],k)));
+$('#prog').onchange=()=>{ $('#progd').textContent=PROG[$('#prog').value][1]; };
+$('#prog').onchange();
+
+/* Moteur Monte Carlo : mise = disposition × multiplicateur de la progression (plafonné), règles d'arrêt */
+function sim(net,total,pk,C,N,NS,up,dn,mx,keep){
+  const P=PROG[pk], r={fin:[],life:0,vol:0,end:{up:0,dn:0,ruin:0,end:0},dd:[],minL:[],str:[],paths:[]};
+  for(let s=0;s<NS;s++){
+    const st=P[2](); let cap=C,t=0,peak=C,mdd=0,low=C,run=0,mrun=0,stop='end',path=s<keep?[0]:null;
+    while(t<N){
+      const m=Math.min(st.m,mx), stake=total*m;
+      if(cap<stake){ stop='ruin'; break; }               // ruine : mise suivante impossible à couvrir
+      const nn=net[(Math.random()*37)|0], w=nn>0?1:nn<0?-1:0;
+      cap+=nn*m; r.vol+=stake; t++;
+      if(w) P[3](st,w,nn/total);
+      if(w<0){ run++; if(run>mrun) mrun=run; } else if(w>0) run=0;
+      if(cap>peak) peak=cap; if(peak-cap>mdd) mdd=peak-cap; if(cap<low) low=cap;
+      if(path) path.push(cap-C);
+      if(up>0&&cap-C>=up){ stop='up'; break; } if(dn>0&&C-cap>=dn){ stop='dn'; break; }
+    }
+    if(path){ while(path.length<=N) path.push(cap-C); r.paths.push(path); }
+    r.end[stop]++; r.life+=t; r.fin.push(cap); r.dd.push(mdd); r.minL.push(C-low); r.str.push(mrun);
+  }
+  return r;
+}
+function summ(r,C,NS){
+  const f=[...r.fin].sort((p,q)=>p-q), q=p=>f[Math.min(NS-1,Math.floor(p*NS))], k=Math.max(1,Math.ceil(.05*NS)), av=v=>v.reduce((s,y)=>s+y,0)/v.length;
+  return {f,q,ruin:r.end.ruin/NS,up:r.end.up/NS,dn:r.end.dn/NS,end:r.end.end/NS,life:r.life/NS,vol:r.vol/NS,mean:av(f),
+    var:Math.max(0,C-q(.05)),cvar:Math.max(0,C-av(f.slice(0,k))),maxLoss:Math.max(...r.minL),dd:av(r.dd),str:Math.max(...r.str),strM:av(r.str)};
+}
+
+/* Histogramme avec légendes d'axes */
+function chart(d,marks,xl='Gain net cumulé',yl='Probabilité (part des cas)'){
+  const lo=Math.min(d[0][0],...marks.map(m=>m[0])), hi=Math.max(d[d.length-1][0],...marks.map(m=>m[0])), W=546, B=50, rg=(hi-lo)||1;
+  const bins=Array(B).fill(0); d.forEach(([v,p])=>bins[Math.min(B-1,Math.floor((v-lo)/rg*B))]+=p);
+  const mx=Math.max(...bins), X=v=>44+(v-lo)/rg*W;
+  return `<svg viewBox="0 0 600 180" style="width:100%;background:#0e1a14;border-radius:8px">`+
+    bins.map((b,i)=>`<rect x="${44+i*W/B}" y="${130-b/mx*105}" width="${W/B-1}" height="${b/mx*105}" fill="#3a8f5c"><title>${money(lo+i*rg/B)} à ${money(lo+(i+1)*rg/B)} : ${(b*100).toFixed(1)} % des cas</title></rect>`).join('')+
+    marks.map(([v,c,l],i)=>`<line x1="${X(v)}" x2="${X(v)}" y1="14" y2="130" stroke="${c}" stroke-width="2" stroke-dasharray="4 3"/><text x="${X(v)+3}" y="${24+(i%4)*11}" fill="${c}" font-size="10">${l} ${money(v)}</text>`).join('')+
+    `<line x1="44" x2="590" y1="130" y2="130" stroke="#789"/><line x1="44" x2="44" y1="22" y2="130" stroke="#789"/>
+    <text x="40" y="28" fill="#aaa" font-size="9" text-anchor="end">${(mx*100).toFixed(1)} %</text><text x="40" y="130" fill="#aaa" font-size="9" text-anchor="end">0 %</text>
+    <text x="44" y="143" fill="#aaa" font-size="10">${money(lo)}</text><text x="590" y="143" fill="#aaa" font-size="10" text-anchor="end">${money(hi)}</text>
+    <text x="317" y="172" fill="#ccc" font-size="11" text-anchor="middle">${xl}</text><text transform="translate(10,76) rotate(-90)" fill="#ccc" font-size="11" text-anchor="middle">${yl}</text></svg>`;
+}
+
+/* Courbe : gain/perte de capital en fonction du nombre de tours (médiane, bande Q5–Q95, parcours individuels) */
+function lineChart(paths,N){
+  const med=[],lo=[],hi=[];
+  for(let t=0;t<=N;t++){ const c=paths.map(p=>p[t]).sort((a,b)=>a-b),k=c.length; med.push(c[k>>1]); lo.push(c[Math.floor(.05*k)]); hi.push(c[Math.min(k-1,Math.floor(.95*k))]); }
+  const ys=[0,...hi,...lo]; paths.slice(0,10).forEach(p=>p.forEach(v=>ys.push(v)));
+  const mn=Math.min(...ys), mxv=Math.max(...ys), rg=(mxv-mn)||1, X=t=>50+t/N*540, Y=v=>190-(v-mn)/rg*170;
+  const pl=a=>a.map((v,t)=>`${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 600 232" style="width:100%;background:#0e1a14;border-radius:8px">
+  <polygon points="${pl(hi)} ${lo.map((v,t)=>[t,v]).reverse().map(([t,v])=>X(t).toFixed(1)+','+Y(v).toFixed(1)).join(' ')}" fill="rgba(76,217,123,.16)"><title>Zone Q5–Q95 : 90 % des parcours</title></polygon>
+  ${paths.slice(0,10).map(p=>`<polyline points="${pl(p)}" fill="none" stroke="#9bb" stroke-opacity=".4" stroke-width="1"/>`).join('')}
+  <line x1="50" x2="590" y1="${Y(0)}" y2="${Y(0)}" stroke="#fff" stroke-dasharray="3 3"/>
+  <polyline points="${pl(med)}" fill="none" stroke="#ffd24c" stroke-width="2.5"><title>Médiane des parcours</title></polyline>
+  <line x1="50" x2="50" y1="20" y2="190" stroke="#789"/><line x1="50" x2="590" y1="190" y2="190" stroke="#789"/>
+  <text x="46" y="24" fill="#aaa" font-size="9" text-anchor="end">${money(mxv)}</text><text x="46" y="${Y(0)+3}" fill="#fff" font-size="9" text-anchor="end">0</text><text x="46" y="190" fill="#aaa" font-size="9" text-anchor="end">${money(mn)}</text>
+  <text x="50" y="203" fill="#aaa" font-size="9">0</text><text x="590" y="203" fill="#aaa" font-size="9" text-anchor="end">${N}</text>
+  <text x="320" y="224" fill="#ccc" font-size="11" text-anchor="middle">Nombre de tours</text><text transform="translate(11,105) rotate(-90)" fill="#ccc" font-size="11" text-anchor="middle">Gain / perte de capital</text>
+  <text x="56" y="13" fill="#ffd24c" font-size="10">— médiane</text><text x="125" y="13" fill="#4cd97b" font-size="10">▮ Q5–Q95</text><text x="190" y="13" fill="#9bb" font-size="10">— parcours individuels</text></svg>`;
+}
+
+/* Bloc bankroll : progression + arrêts + risque avancé + courbe */
+function bankrollHTML(a,C,N,NS){
+  const up=+$('#sup').value||0, dn=+$('#sdn').value||0, mx=Math.max(1,+$('#pmx').value||100), pk=$('#prog').value;
+  const r=sim(a.net,a.total,pk,C,N,NS,up,dn,mx,300), x=summ(r,C,NS), f=fr;
+  const stops=(up?`arrêt gain +${up} `:'')+(dn?`arrêt perte −${dn} `:'')||'aucun arrêt';
+  return `<div class="hint" style="margin-top:10px">Simulation de bankroll — <b>${PROG[pk][0]}</b> · Monte Carlo : ${NS} parcours de ${N} tour(s), capital ${C}, ${stops}, plafond ×${mx}</div>
+  <div class="stats">${[
+    st('P(ruine)',(x.ruin*100).toFixed(1)+' %',x.ruin?'neg':'pos','Part des parcours où le capital ne suffit plus à couvrir la mise du tour suivant.'),
+    st('P(objectif atteint)',up?(x.up*100).toFixed(1)+' %':'—',up?'pos':'','Part des parcours qui atteignent le gain cible avant tout le reste. Avec cible = capital : probabilité de doubler avant la ruine.'),
+    st('P(stop-loss)',dn?(x.dn*100).toFixed(1)+' %':'—',dn?'neg':'','Part des parcours arrêtés par la perte maximale acceptée.'),
+    st('P(fin sans arrêt)',(x.end*100).toFixed(1)+' %','','Parcours allés au bout des N tours sans ruine ni règle d\'arrêt.'),
+    st('Durée de vie moyenne',x.life.toFixed(1)+' tours','','Nombre moyen de tours joués avant ruine ou arrêt, plafonné à N.'),
+    st('Capital médian',f(x.q(.5)),'','Capital final atteint ou dépassé dans la moitié des parcours.'),
+    st('Capital Q5 / Q95',f(x.q(.05))+' / '+f(x.q(.95)),'','5 % des parcours finissent sous le premier chiffre, 5 % au-dessus du second.'),
+    st('Capital moyen',f(x.mean),'','Moyenne des capitaux finaux.')].join('')}</div>
+  <div class="claude"><h3>🛡 Mesures de risque avancées</h3><div class="stats">${[
+    st('Perte max (pire parcours)',f(x.maxLoss),'neg','Plus forte baisse sous le capital initial observée sur un parcours, à n\'importe quel moment.'),
+    st('Drawdown moyen',f(x.dd),'neg','Plus grande chute depuis un sommet de capital, en moyenne sur les parcours.'),
+    st('Pire série de pertes',x.str+' tours','neg','Plus longue suite de tours perdants observée (moyenne : '+x.strM.toFixed(1)+').'),
+    st('VaR 95 %',f(x.var),'neg','Perte finale dépassée dans seulement 5 % des parcours.'),
+    st('CVaR 95 %',f(x.cvar),'neg','Perte moyenne dans les 5 % de parcours les plus mauvais (Expected Shortfall).')].join('')}</div></div>
+  <div class="claude"><h3>🏛 Pourquoi la maison gagne toujours</h3><div class="stats">${[
+    st('Volume misé moyen',f(x.vol),'','Somme de toutes les mises d\'un parcours, en moyenne. Les progressions l\'augmentent.'),
+    st('Perte moyenne observée',f(C-x.mean),cls(x.mean-C),'Capital initial − capital final moyen.'),
+    st('Perte théorique',f(x.vol/37),'','Avantage maison 2,70 % × volume misé : la perte attendue quelle que soit la progression.'),
+    st('Perte ÷ volume',x.vol?((C-x.mean)/x.vol*100).toFixed(2)+' %':'—','','Doit rester proche de 2,70 % (écart = bruit de simulation) : aucune progression ne change ce rapport.')].join('')}</div>
+  <div class="hint">Une progression ne modifie pas l'espérance par euro misé : elle augmente le volume misé (donc la perte attendue) et déforme le risque : beaucoup de petits gains, rares pertes énormes.</div></div>
+  <div class="hint" style="margin-top:8px">Distribution du capital final</div>${chart(x.f.map(v=>[v,1/NS]),[[C,'#ffffff','départ'],[x.q(.5),'#ffd24c','médiane']],'Capital final','Probabilité (part des parcours)')}
+  <div class="hint" style="margin-top:8px">Évolution du gain / perte de capital au fil des tours (échantillon de 300 parcours)</div>${lineChart(r.paths,N)}
+  <div class="hint">Simulation statistique, pas un jeu : chaque tour tire un numéro au hasard parmi 37 pour appliquer le gain net de la disposition × la mise de la progression.</div>`;
+}
+
+/* Tournoi : mêmes capital, tours et règles pour toutes les stratégies */
+function runTour(){
+  const C=+$('#bk').value||0, N=Math.min(300,Math.max(1,~~$('#nt').value)), NS=Math.min(5000,Math.max(100,~~$('#ns').value)),
+    up=+$('#sup').value||0, dn=+$('#sdn').value||0, mx=Math.max(1,+$('#pmx').value||100);
+  const mk=k=>new Map(SPECIALS[k].map(([m,w])=>[key(m),r2(chip*w)]));
+  const L=[['Stratégie active (mise plate)','Disposition',bets,'plate']];
+  [['bond','James Bond'],['dz','Deux douzaines'],['cols','Deux colonnes'],['croise','Douzaine + colonne'],['rzero','Rouge + zéro'],['vois','Voisins du zéro'],['tiers','Tiers du cylindre'],['orph','Orphelins']].forEach(([k,n])=>L.push([n,'Disposition',mk(k),'plate']));
+  Object.entries(PROG).filter(([k])=>k!=='plate').forEach(([k,p])=>L.push([p[0]+' (sur Rouge)','Progression',new Map([[key(ROUGE),chip]]),k]));
+  const rows=L.filter(e=>e[2].size).map(([n,t,m,pk])=>{ const a=compute(m); return {n,t,a,x:summ(sim(a.net,a.total,pk,C,N,NS,up,dn,mx,0),C,NS)}; }).sort((p,q)=>q.x.q(.5)-p.x.q(.5));
+  const H=[['Stratégie','Nom de la stratégie (progressions testées sur Rouge, jeton actif = unité)'],['Type','Disposition fixe ou progression de mise'],['Mise de base','Mise totale du premier tour'],['P(ruine)','Part des parcours ruinés'],['P(objectif)','Part des parcours atteignant le gain cible (si défini)'],['Capital médian','Capital final médian'],['Capital moyen','Capital final moyen'],['Volume misé','Total misé par parcours en moyenne'],['Perte ÷ volume','Perte moyenne divisée par le volume misé : proche de 2,70 % pour toutes'],['Drawdown moyen','Plus grande chute depuis un sommet, en moyenne']];
+  $('#tour').innerHTML=`<div class="hint">🏆 Tournoi : capital ${C}, ${N} tour(s), ${NS} parcours par stratégie, classé par capital médian</div><div class="tw" style="max-height:none"><table><thead><tr>${H.map(([t,h])=>`<th title="${h}">${t}</th>`).join('')}</tr></thead><tbody>${rows.map(({n,t,a,x})=>`<tr><td style="text-align:left">${n}</td><td>${t}</td><td>${a.total.toFixed(2)}</td><td class="${x.ruin>.5?'neg':x.ruin>0?'neu':'pos'}">${(x.ruin*100).toFixed(1)} %</td><td>${up?(x.up*100).toFixed(1)+' %':'—'}</td><td><b>${fr(x.q(.5))}</b></td><td>${fr(x.mean)}</td><td>${fr(x.vol)}</td><td>${x.vol?((C-x.mean)/x.vol*100).toFixed(2)+' %':'—'}</td><td>${fr(x.dd)}</td></tr>`).join('')}</tbody></table></div><div class="hint">La colonne « Perte ÷ volume » reste autour de 2,70 % pour toutes : les stratégies changent le risque et le volume misé, jamais l'avantage de la maison.</div>`;
+}
+$('#runTour').onclick=runTour;
+
+/* ============ Interface ============ */
+(function ui(){
+  const box = $('#chips');
+  CHIPS.forEach(([v,c])=>{
+    const b = document.createElement('button');
+    b.className='chip'; b.textContent=v; b.style.background=c.split(';')[0];
+    if(c.includes('color')) b.style.color='#fff';
+    b.onclick=()=>setChip(v);
+    box.appendChild(b);
+  });
+  setChip(1);
+})();
+function setChip(v){
+  chip=v; $('#curChip').textContent=v;
+  document.querySelectorAll('.chip').forEach(b=>b.classList.toggle('sel',parseFloat(b.textContent)===v));
+}
+$('#setCustom').onclick=()=>{ const v=parseFloat($('#custom').value); if(v>0) setChip(r2(v)); };
+$('#undo').onclick=()=>{ if(hist.length){ bets=hist.pop(); refresh(); } };
+$('#clr').onclick=()=>{ if(bets.size){ hist.push(new Map(bets)); bets.clear(); refresh(); } };
+$('#dbl').onclick=()=>{ if(bets.size){ hist.push(new Map(bets)); bets.forEach((v,k)=>bets.set(k,r2(v*2))); refresh(); } };
+$('#calc').onclick=analyze;
+$('#color').onchange=analyze;
+$('#live').onchange=()=>{ if($('#live').checked) analyze(); };
+document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>
+  changeBets(SPECIALS[b.dataset.sp].map(([nums,w])=>[nums,r2(chip*w)])));
+refresh();
+</script>
+</body>
+</html>
