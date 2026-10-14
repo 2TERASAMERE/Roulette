@@ -257,7 +257,7 @@ function changeBets(list){
   });
   refresh();
 }
-function refresh(){
+function refresh(){ hlStrat();
   // Jetons posés sur le tapis
   board.querySelectorAll('.chipb').forEach(e=>e.remove());
   bets.forEach((amt,k)=>{
@@ -332,7 +332,7 @@ function renderSummary(a){
   const t2=[...G.values()].sort((x,y)=>y.net-x.net).map(o=>
     `<tr class="${o.net>0?'cg':o.g===0?'cr':'co'}" title="${o.nums.length} numéro(s) : ${pc(o.nums.length)} de chances"><td style="text-align:left;white-space:normal">${o.s}</td><td style="white-space:normal">${o.nums.join(', ')}</td><td>${pc(o.nums.length)}</td><td>${o.g.toFixed(2)}</td><td class="${cls(o.net)}"><b>${money(o.net)}</b></td></tr>`).join('');
   const T=(h)=>'<tr>'+h.map(([t,i])=>`<th title="${i}">${t}</th>`).join('')+'</tr>';
-  el.innerHTML=`<p style="margin:0 0 10px;line-height:1.5">Mise totale <b>${a.total.toFixed(2)}</b> sur <b>${a.list.length}</b> pari(s). Gain dans <b class="pos">${pc(a.win)}</b> des cas (${a.win}/37), remboursé dans ${pc(a.neu)}, perte partielle ${pc(a.part)}, perte totale ${pc(a.loss)}. Meilleur net <b class="${cls(a.max)}">${money(a.max)}</b>, pire <b class="${cls(a.min)}">${money(a.min)}</b>, espérance <b class="${cls(a.ev)}">${money(a.ev)}</b> (ROI ${(a.ev/a.total*100).toFixed(2)} %).</p>
+  el.innerHTML=`<p style="margin:0 0 6px">${stratTag()}</p><p style="margin:0 0 10px;line-height:1.5">Mise totale <b>${a.total.toFixed(2)}</b> sur <b>${a.list.length}</b> pari(s). Gain dans <b class="pos">${pc(a.win)}</b> des cas (${a.win}/37), remboursé dans ${pc(a.neu)}, perte partielle ${pc(a.part)}, perte totale ${pc(a.loss)}. Meilleur net <b class="${cls(a.max)}">${money(a.max)}</b>, pire <b class="${cls(a.min)}">${money(a.min)}</b>, espérance <b class="${cls(a.ev)}">${money(a.ev)}</b> (ROI ${(a.ev/a.total*100).toFixed(2)} %).</p>
   <div class="hint">Paris posés</div><div class="tw" style="max-height:200px"><table><thead>${T([['Pari','Zone du tapis'],['Mise','Montant cumulé'],['Paiement','Rapport du pari'],['Nb n°','Numéros couverts'],['Rendu si gagne','Mise × 36 / nb de numéros'] ])}</thead><tbody>${t1}</tbody></table></div>
   <div class="hint" style="margin-top:10px">Toutes les issues possibles (regroupées par mises gagnantes)</div><div class="tw" style="max-height:260px"><table><thead>${T([['Mises gagnantes','Paris qui touchent pour ces numéros'],['Numéros','Numéros de la roulette concernés'],['Proba','Nombre de numéros / 37'],['Gain brut','Total rendu'],['Gain net','Gain brut − mise totale']])}</thead><tbody>${t2}</tbody></table></div>`;
 }
@@ -643,7 +643,7 @@ function spin(k){
 }
 function renderSpin(msg=''){
   const L=spins[spins.length-1], g=sp?sp.cap-sp.C:0;
-  $('#spout').innerHTML=`<div class="stats">${[sp?st('Capital',fr(sp.cap),cls(g),'Capital actuel de la session.'):'',st('Gain / perte cumulé',money(g),cls(g),'Capital actuel − capital de départ.'),st('Tours joués',spins.length,'','Nombre de tours tirés dans la session.'),L?st('Dernier numéro',`<span class="nb ${colorOf(L.n)}">${L.n}</span> ${money(L.net)}`,cls(L.net),'Numéro sorti au dernier tour et gain net associé.'):''].join('')}</div>`+
+  $('#spout').innerHTML=`<div class="hint" style="margin:0 0 6px">${simTag()}</div><div class="stats">${[sp?st('Capital',fr(sp.cap),cls(g),'Capital actuel de la session.'):'',st('Gain / perte cumulé',money(g),cls(g),'Capital actuel − capital de départ.'),st('Tours joués',spins.length,'','Nombre de tours tirés dans la session.'),L?st('Dernier numéro',`<span class="nb ${colorOf(L.n)}">${L.n}</span> ${money(L.net)}`,cls(L.net),'Numéro sorti au dernier tour et gain net associé.'):''].join('')}</div>`+
   (msg?`<div class="hint neg">${msg}</div>`:'')+(spins.length?`<div class="hint">Numéros sortis (le plus récent en premier, survol = détail)</div><div>${spins.slice(-40).reverse().map(s=>`<span class="nb ${colorOf(s.n)}" title="Tour ${s.t} : ${money(s.net)}" style="margin:1px">${s.n}</span>`).join('')}</div>`+
   tbl([['Tour','Numéro du tour'],['N°','Numéro sorti'],['Mise','Total misé ce tour'],['Gain net','Gain brut − mise'],['Capital','Capital après le tour']],spins.slice(-30).reverse().map(s=>`<tr><td>${s.t}</td><td><span class="nb ${colorOf(s.n)}">${s.n}</span></td><td>${fr(s.stake)}</td><td class="${cls(s.net)}"><b>${money(s.net)}</b></td><td>${fr(s.cap)}</td></tr>`))+
   `<div class="hint" style="margin-top:8px">Évolution du gain / perte de capital</div>${curve([0,...spins.map(s=>s.cap-sp.C)])}`:'');
@@ -694,6 +694,26 @@ function analyzeSpins(){
 $('#sp1').onclick=()=>spin(1); $('#sp10').onclick=()=>spin(10); $('#sp100').onclick=()=>spin(100);
 $('#spA').onclick=analyzeSpins;
 $('#spR').onclick=()=>{ spins=[]; sp=null; $('#spins').innerHTML=''; $('#spout').innerHTML='<div class="hint">Session réinitialisée.</div>'; };
+
+/* ============ v6 : stratégie reconnue / personnalisée, surbrillance ============ */
+// Renvoie la clé de l'annonce/répartition correspondant exactement aux mises (à un facteur près), 'perso' sinon, '' si tapis vide
+function stratLabel(){
+  if(!bets.size) return '';
+  for(const k of Object.keys(NM)){
+    const m=new Map(SPECIALS[k].map(([n,w])=>[key(n),w]));
+    if(m.size!==bets.size) continue;
+    let q0=null, ok=true;
+    for(const [kk,w] of m){ const b=bets.get(kk); if(!b){ ok=false; break; } const q=b/w; if(q0===null) q0=q; else if(Math.abs(q-q0)>1e-6){ ok=false; break; } }
+    if(ok) return k;
+  }
+  return 'perso';
+}
+function stratTag(){
+  const k=stratLabel();
+  return `Stratégie ${cur} : `+(k===''?'<i>aucune mise posée</i>':k==='perso'?'<b>personnalisée</b> (mises posées manuellement)':`<b>${NM[k]}</b>`);
+}
+const simTag=()=>stratTag()+' · '+($('#spp').checked?`progression <b>${PROG[$('#prog').value][0]}</b>`:'mise plate');
+function hlStrat(){ const k=stratLabel(); document.querySelectorAll('[data-sp]').forEach(b=>b.classList.toggle('sel',b.dataset.sp===k)); }
 
 /* ============ Interface ============ */
 (function ui(){
